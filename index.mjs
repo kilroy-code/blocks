@@ -21,16 +21,15 @@ export class Block extends Croquet.View {
 	  blockModel = {},
 	  spec = croquetModel.spec,
 	  id = croquetModel.id,
-	  makeReady = () => this.ready = new Promise(resolve => this._readyResolve = resolve),
 	  setBlockModelProperty = ({key, value, from}) => {
 	    blockModel[key] = value;
 	    if (from !== block.viewId) return;
 	    if (--block._outstanding) return;
 	    block._readyResolve();
-	    makeReady();
+	    this._ready = null;
 	  };
     this._outstanding = 0;
-    makeReady();  // Doesn't resolve until we send and receive our own.
+    this._ready = null;
     this.spec = new Proxy(spec,{
       set() {
 	throw new Error("The block spec is not writeable.");
@@ -47,6 +46,10 @@ export class Block extends Croquet.View {
       setBlockModelProperty({key, value: spec[key]}); // No 'from'.
     }
     this.subscribe(id, 'setBlockModelProperty', setBlockModelProperty);
+  }
+  get ready() {
+    if (this._ready) return this._ready;
+    return this._ready = new Promise(resolve => this._readyResolve = resolve);
   }
   static async initialize(options) {
     const args = Object.assign({model: Spec, view: Block}, options),
