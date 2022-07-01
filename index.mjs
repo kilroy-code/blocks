@@ -1,24 +1,45 @@
 //import { Croquet } from '../croquet-in-memory/index.mjs';
 
-class Spec extends Croquet.Model { // Applications don't see these.
+class Spec extends Croquet.Model {
+  // Applications don't see these. Internally, their job is to generically hold all the non-default state of the application.
   init(properties) {
     super.init(properties);
-    this.spec = {};  // But they do see (a read-only proxy to) this.
+    this.spec = {};  // But they do see (a read-only proxy to) this, which holds the state.
     // TODO: expend children
-    this.subscribe(this.id, 'setSpecProperty', this._setSpecProperty);
+    this.subscribe(this.id, 'setSpecProperty', this.setSpecProperty);
   }
-  _setSpecProperty({key, value, from}) { // Update our spec, and reflect to the block model.
+  setSpecProperty({key, value, from}) { // Update our spec, and reflect to the block model.
     if (value === undefined) delete this.spec[key];
     else this.spec[key] = value;
     this.publish(this.id, 'setBlockModelProperty', {key, value, from}); // And regardless, forward to block.
   }
+  destroy() {
+    console.log('FIXME detroyed');
+    super.destroy();
+  }
 }
 
 export class Block extends Croquet.View {
+  detach() {
+    console.log('FIXME detach');
+    super.detach();
+  }
   constructor(croquetModel) {
+    console.log('making Block Croquet.View');
     super(croquetModel);
+    this._croquetModel = croquetModel;
+    this._outstanding = 0;
+    this._ready = null;
+    this.spec = new Proxy(croquetModel.spec, {
+      set() {
+	throw new Error("The block spec is not writeable.");
+      }
+    });
+    this.initializeNewModel();
+  }
+  initializeNewModel(blockModel = {}) { // Sets up this.model based on this.spec.
     const block = this,
-	  blockModel = {},
+	  croquetModel = this._croquetModel,
 	  spec = croquetModel.spec,
 	  id = croquetModel.id,
 	  setBlockModelProperty = ({key, value, from}) => {
@@ -28,13 +49,8 @@ export class Block extends Croquet.View {
 	    block._readyResolve();
 	    this._ready = null;
 	  };
-    this._outstanding = 0;
-    this._ready = null;
-    this.spec = new Proxy(spec,{
-      set() {
-	throw new Error("The block spec is not writeable.");
-      }
-    });
+    if (this.model) this.unsubscribe(id, 'setBlockModelProperty');
+    this.subscribe(id, 'setBlockModelProperty', setBlockModelProperty);
     this.model = new Proxy(blockModel, {
       set(target, key, value) { // Assignments to model proxy are reflected through Croquet.
 	++block._outstanding;
@@ -45,7 +61,6 @@ export class Block extends Croquet.View {
     for (let key in spec) { // Initialize rule model properties from Croquet.
       setBlockModelProperty({key, value: spec[key]}); // No 'from'.
     }
-    this.subscribe(id, 'setBlockModelProperty', setBlockModelProperty);
   }
   get ready() {
     if (this._ready) return this._ready;
