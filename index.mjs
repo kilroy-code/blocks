@@ -1,49 +1,60 @@
 //import { Croquet } from '../croquet-in-memory/index.mjs';
 
+function makeResolvablePromise() { // Return a Promise that stores it's resolve() as a property on itself.
+  let cleanup, promise = new Promise(resolve => cleanup = resolve);
+  promise.resolve = cleanup;
+  return promise;
+}
+
+// Applications don't see these. Internally, their job is to generically hold all the non-default state of the application.
 class Spec extends Croquet.Model {
-  // Applications don't see these. Internally, their job is to generically hold all the non-default state of the application.
   init(properties) {
     super.init(properties);
-    this.spec = {};  // But they do see (a read-only proxy to) this, which holds the state.
+    this.spec = {};  // A clean set of all & only the properties (no Croquet machinery) that can be read by the application.
     // TODO: expend children
     this.subscribe(this.id, 'setSpecProperty', this.setSpecProperty);
   }
-  setSpecProperty({key, value, from}) { // Update our spec, and reflect to the block model.
+  setSpecProperty({key, value, from}) { // Update our spec, and reflect to the naked block model.
     if (value === undefined) delete this.spec[key];
     else this.spec[key] = value;
-    this.publish(this.id, 'setBlockModelProperty', {key, value, from}); // And regardless, forward to block.
+    this.publish(this.id, 'setModelProperty', {key, value, from});
   }
 }
+Spec.register("Spec");
 
 class Synchronizer extends Croquet.View {
-  constructor(model) {
-    super(model);
-    this.model = model;
+  // Controls communication between the block model and the Croquet session. While the session is running:
+  //   this.nakedBlockModel preserves the underlying block model.
+  //   block.model is proxy that intercepts assignments and reflects through Croquet.
+  //   block.session is the Croquet session.
+  // If we go offline (or suspended), these are null.
+  constructor(croquetSpec) {
+    super(croquetSpec);
+    this.croquetSpec = croquetSpec;
     this.outstanding = 0;
-    this._ready = null;
+    this.readyPromise = null;
     // It isn't documented, but Croquet.View constructor sets session. However, it nulls it before detach() is called.
     this.originalSession = this.session;
-    this.subscribe(model.id, 'setBlockModelProperty', this.setBlockModelProperty);
-    console.log('created view', this.id, this.session.block); window.view = this, window.session = this.session;
+    this.subscribe(croquetSpec.id, 'setModelProperty', this.setModelProperty);
+    // If this is new from a Croquet session restart (after reavealing a hidden tab), reintegrate the existing block.
     if (this.session.block) this.integrate(this.session.block);
   }
-  detach() {
+  detach() { // Called when our session ends by explicit leave or tab hidden.
     const block = this.originalSession.block,
-	  blockModel = this.blockModel;
-    super.detach();
-    if (!block) return;
-    if (this._ready) this._ready.resolve();
-    this._ready = block.session = null;
-    block.model = blockModel; // Restore the naked, assignable model.
+	  nakedBlockModel = this.nakedBlockModel;
+    super.detach(); // Unsubscribes all.
+    this.resolveReady() // if (this.readyPromise) this.readyPromise.resolve(); // Just in case someone's waiting.
+    block.session = this.nakedBlockModel = null;
+    block.model = nakedBlockModel; // Restore the naked, assignable model.
   }
   integrate(block) { // Sets up block.model based on this.spec.
     const synchronizer = this,
-	  blockModel = this.blockModel = block.model,
-	  model = this.model,
-	  spec = block.spec = model.spec,
-	  id = model.id;
-    console.log('integrate', blockModel, spec, id);
-    block.model = new Proxy(blockModel, {
+	  nakedBlockModel = this.nakedBlockModel = block.model,
+	  croquetSpec = this.croquetSpec,
+	  spec = block.spec = croquetSpec.spec,
+	  id = croquetSpec.id;
+    block.session = this.session;
+    block.model = new Proxy(nakedBlockModel, {
       set(target, key, value) { // Assignments to model proxy are reflected through Croquet.
 	++synchronizer.outstanding;
 	synchronizer.publish(id, 'setSpecProperty', {key, value, from: synchronizer.viewId});
@@ -51,37 +62,35 @@ class Synchronizer extends Croquet.View {
       }
     });
     for (let key in spec) { // Initialize rule model properties from Croquet.
-      this.setBlockModelProperty({key, value: spec[key]}); // No 'from'.
+      this.setModelProperty({key, value: spec[key]}); // No 'from'.
     }
-    block.session = this.session;
   }
-  setBlockModelProperty({key, value, from}) {
-    this.blockModel[key] = value;
-    if (from !== this.viewId) return;
-    console.log('setBlockModelProperty', this.outstanding, this._readyResolve);
+  setModelProperty({key, value, from}) { // Maintain a model property, and resolveReady if needed.
+    this.nakedBlockModel[key] = value;
+    if (from !== this.viewId) return; // Only count down our own assignments.
     if (--this.outstanding) return;
-    this._ready.resolve();
-    this._ready = null;
+    this.resolveReady();
   }
-  get ready() {
-    if (this._ready) return this._ready;
-    let resolver,
-	promise = new Promise(resolve => resolver = resolve);
-    promise.resolve = resolver;
-    return this._ready = promise;
+  resolveReady() { // Resolve readyPromise, if any.
+    if (!this.readyPromise) return;
+    this.readyPromise.resolve();
+    this.readyPromise = null;
+  }
+  get ready() { // A promise that resolves when there are no longer any outstanding assignments.
+    if (this.readyPromise) return this.readyPromise;
+    return this.readyPromise = makeResolvablePromise();
   }
 }
 
-// FIXME: devide Synchronizer into those used for child blocks and those for the root/place blocks.
+// FIXME: divide Synchronizer into those used for child blocks and those for the root/place blocks.
 //     Some references (e.g., through session.view) must then find our particular child-synchronizer.
 export class Block {
   constructor(model) {
     this.model = model;
   }
   static async fromSession(croquetOptions) {
-    const block = new this({}),
-	  session = await block.join(croquetOptions);
-    //session.block = block;
+    const block = new this({});
+    await block.join(croquetOptions);
     return block;
   }
   async join(croquetOptions, specToMerge = null) { // Join the specified Croquet session, interating our model.
@@ -106,5 +115,3 @@ export class Block {
     await this.session.leave();
   }
 }
-
-Spec.register("Spec");
