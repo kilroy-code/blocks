@@ -34,26 +34,28 @@ class Synchronizer extends Croquet.View {
     this.outstanding = 0;
     this.readyPromise = null;
     // It isn't documented, but Croquet.View constructor sets session. However, it nulls it before detach() is called.
-    this.originalSession = this.session;
+    this.cachedSession = this.session;
     this.subscribe(croquetSpec.id, 'setModelProperty', this.setModelProperty);
     // If this is new from a Croquet session restart (after reavealing a hidden tab), reintegrate the existing block.
     if (this.session.block) this.integrate(this.session.block);
   }
   detach() { // Called when our session ends by explicit leave or tab hidden.
-    const block = this.originalSession.block,
+    const block = this.cachedSession.block,
 	  nakedBlockModel = this.nakedBlockModel;
     super.detach(); // Unsubscribes all.
     this.resolveReady() // if (this.readyPromise) this.readyPromise.resolve(); // Just in case someone's waiting.
-    block.session = this.nakedBlockModel = null;
+    block.session = this.cachedSession = this.nakedBlockModel = null;
     block.model = nakedBlockModel; // Restore the naked, assignable model.
   }
   integrate(block) { // Sets up block.model based on this.spec.
-    const synchronizer = this,
+    const synchronizer = this, // Being clear about reference within proxy definition below.
+	  session = this.cachedSession, // Only valid when not detached. Can't integrate a detached Synchronizer.
 	  nakedBlockModel = this.nakedBlockModel = block.model,
 	  croquetSpec = this.croquetSpec,
 	  spec = block.spec = croquetSpec.spec,
 	  id = croquetSpec.id;
-    block.session = this.session;
+    block.session = session;
+    session.block = block;
     block.model = new Proxy(nakedBlockModel, {
       set(target, key, value) { // Assignments to model proxy are reflected through Croquet.
 	++synchronizer.outstanding;
@@ -83,7 +85,9 @@ class Synchronizer extends Croquet.View {
 }
 
 // FIXME: divide Synchronizer into those used for child blocks and those for the root/place blocks.
-//     Some references (e.g., through session.view) must then find our particular child-synchronizer.
+//     Some references (e.g., through session.view and session.block) must then find our particular child-synchronizer.
+
+// A Block always has a model, and has a session IFF it is online.
 export class Block {
   constructor(model) {
     this.model = model;
@@ -97,7 +101,6 @@ export class Block {
     await this.leave();
     const options = Object.assign({model: Spec, view: Synchronizer}, croquetOptions),
 	  session = this.session = await Croquet.Session.join(options);
-    session.block = this;
     session.view.integrate(this, specToMerge);
     if (!specToMerge) return session;
     // TODO: arrange at least an automerge (including children).
@@ -107,11 +110,11 @@ export class Block {
     await this.ready;
     return session;
   }
-  get ready() { // If there is a session, answer a promise that resolves when all our traffic to our view has been reflected.
-    return this.session && this.session.view.ready;
-  }
   async leave() { // Leave the current synchronizing session, if any.
     if (!this.session) return;
     await this.session.leave();
+  }
+  get ready() { // If there is a session, answer a promise that resolves when all our traffic to our view has been reflected.
+    return this.session && this.session.view.ready;
   }
 }
