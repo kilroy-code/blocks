@@ -13,86 +13,97 @@ class Spec extends Croquet.Model {
     else this.spec[key] = value;
     this.publish(this.id, 'setBlockModelProperty', {key, value, from}); // And regardless, forward to block.
   }
-  destroy() {
-    console.log('FIXME detroyed');
-    super.destroy();
-  }
 }
 
 class Synchronizer extends Croquet.View {
-  detach() {
-    console.log('FIXME detach');
-    super.detach();
-  }
-  constructor(croquetModel) { // fixme: let's make this spec => this.spec and screw the proxy.
-    super(croquetModel);
-    this._croquetModel = croquetModel;
-    this._outstanding = 0; // fixme: get rid of the underscores
+  constructor(model) {
+    super(model);
+    this.model = model;
+    this.outstanding = 0;
     this._ready = null;
-    this.spec = new Proxy(croquetModel.spec, {
-      set() {
-	throw new Error("The block spec is not writeable.");
-      }
-    });
+    // It isn't documented, but Croquet.View constructor sets session. However, it nulls it before detach() is called.
+    this.originalSession = this.session;
+    this.subscribe(model.id, 'setBlockModelProperty', this.setBlockModelProperty);
+    console.log('created view', this.id, this.session.block); window.view = this, window.session = this.session;
+    if (this.session.block) this.integrate(this.session.block);
   }
-  integrate(block) { // Sets up this.model based on this.spec.
-    const croquetModel = this._croquetModel,
-	  synchronizer = this,
-	  blockModel = block.model,
-	  spec = block.spec = croquetModel.spec,
-	  id = croquetModel.id,
-	  setBlockModelProperty = ({key, value, from}) => {
-	    blockModel[key] = value;
-	    if (from !== synchronizer.viewId) return;
-	    if (--synchronizer._outstanding) return;
-	    synchronizer._readyResolve();
-	    synchronizer._ready = null;
-	  };
-    if (this.model) this.unsubscribe(id, 'setBlockModelProperty');
-    this.subscribe(id, 'setBlockModelProperty', setBlockModelProperty);
+  detach() {
+    const block = this.originalSession.block,
+	  blockModel = this.blockModel;
+    super.detach();
+    if (!block) return;
+    if (this._ready) this._ready.resolve();
+    this._ready = block.session = null;
+    block.model = blockModel; // Restore the naked, assignable model.
+  }
+  integrate(block) { // Sets up block.model based on this.spec.
+    const synchronizer = this,
+	  blockModel = this.blockModel = block.model,
+	  model = this.model,
+	  spec = block.spec = model.spec,
+	  id = model.id;
+    console.log('integrate', blockModel, spec, id);
     block.model = new Proxy(blockModel, {
       set(target, key, value) { // Assignments to model proxy are reflected through Croquet.
-	++synchronizer._outstanding;
+	++synchronizer.outstanding;
 	synchronizer.publish(id, 'setSpecProperty', {key, value, from: synchronizer.viewId});
 	return true;
       }
     });
     for (let key in spec) { // Initialize rule model properties from Croquet.
-      setBlockModelProperty({key, value: spec[key]}); // No 'from'.
+      this.setBlockModelProperty({key, value: spec[key]}); // No 'from'.
     }
+    block.session = this.session;
+  }
+  setBlockModelProperty({key, value, from}) {
+    this.blockModel[key] = value;
+    if (from !== this.viewId) return;
+    console.log('setBlockModelProperty', this.outstanding, this._readyResolve);
+    if (--this.outstanding) return;
+    this._ready.resolve();
+    this._ready = null;
   }
   get ready() {
     if (this._ready) return this._ready;
-    return this._ready = new Promise(resolve => this._readyResolve = resolve);
+    let resolver,
+	promise = new Promise(resolve => resolver = resolve);
+    promise.resolve = resolver;
+    return this._ready = promise;
   }
 }
 
-// FIXME: devide Synchronizer into those used for child blocks and those for the root/place blocks. Some references (e.g., ready) must then be not to session, but must find our particular child-synchronizer.
+// FIXME: devide Synchronizer into those used for child blocks and those for the root/place blocks.
+//     Some references (e.g., through session.view) must then find our particular child-synchronizer.
 export class Block {
   constructor(model) {
     this.model = model;
   }
-  static async initialize(croquetOptions) { // FIXME: Just for test compatability. Remove it.
+  static async fromSession(croquetOptions) {
     const block = new this({}),
 	  session = await block.join(croquetOptions);
-    session.block = block;
-    return session;
+    //session.block = block;
+    return block;
   }
-  async join(croquetOptions) { // Join the specified Croquet session, interating our model.
+  async join(croquetOptions, specToMerge = null) { // Join the specified Croquet session, interating our model.
     await this.leave();
     const options = Object.assign({model: Spec, view: Synchronizer}, croquetOptions),
 	  session = this.session = await Croquet.Session.join(options);
-    session.view.integrate(this);
+    session.block = this;
+    session.view.integrate(this, specToMerge);
+    if (!specToMerge) return session;
+    // TODO: arrange at least an automerge (including children).
+    for (let key in specToMerge) {
+      this.model[key] = specToMerge[key];
+    }
+    await this.ready;
     return session;
   }
-  get ready() {
+  get ready() { // If there is a session, answer a promise that resolves when all our traffic to our view has been reflected.
     return this.session && this.session.view.ready;
   }
   async leave() { // Leave the current synchronizing session, if any.
     if (!this.session) return;
     await this.session.leave();
-    this.model = this.session.blockModel; // Restore the naked, assignable model.
-    this.session = null;
   }
 }
 
