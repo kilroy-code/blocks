@@ -68,7 +68,7 @@ class Synchronizer extends Croquet.View {
     });
     for (let key in spec) { // Initialize rule model properties from Croquet.
       // FIXME: somewhere, ensure that the child Blocks, Specs, and Synchronizers all match.
-      // But what drives it? Maybe block drive spec which then creates synchronizers.
+      // But what drives it? Late-joining spec must create creates synchronizers and populate block. But maybe allow a block to inject a spec to be merged.
       this.setModelProperty({key, value: spec[key]}); // No 'from'.
     }
   }
@@ -86,13 +86,6 @@ class Synchronizer extends Croquet.View {
   get ready() { // A promise that resolves when there are no longer any outstanding assignments.
     if (this.readyPromise) return this.readyPromise;
     return this.readyPromise = makeResolvablePromise();
-  }
-  // FIXME: root Synchronizer keeps a map of Block => Synchronizer (and each Synchronizer keeps the corresponding Block)
-  getSynchronizer(block) {
-    return this.synchronizers.get(block);
-  }
-  setSynchronizer(block, synchronizer) {
-    return this.synchronizers.set(block, synchronizer);
   }
 }
 
