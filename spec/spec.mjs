@@ -9,11 +9,12 @@ describe('Replicated', function () {
       .then(async apiKey => {
 	let options = {
 	  appId: "com.ki1r0y.replicated",
-	  name: "x17",
+	  name: "x18",
 	  apiKey,
 	  password: "secret",
 	},
-	    block = await Block.fromSession(options);
+	    block = new Block({});
+	await block.join(options);
 	block.model.baz = 99;
 	block.model.foo = 17;
 	block.model.bar = 42;
@@ -24,11 +25,12 @@ describe('Replicated', function () {
 	expect(JSON.stringify(block.spec)).toBe('{"foo":17,"bar":42}');
 	await block.leave();
 
-	await block.join(options, block.spec);
+	if (Block.Croquet.fake) options.options = block.spec; // Fake Croquet doesn't persist across sessions.
+	await block.join(options);
+
 	expect(block.model.foo).toBe(17);
 	expect(JSON.stringify(block.spec)).toBe('{"foo":17,"bar":42}');
 	await block.leave();
-
 	done();
       });
   });

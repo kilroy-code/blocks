@@ -2,6 +2,11 @@
 
 Uses Croquet to keep models in sync among all users.
 
+1. Assign properties, and values automatically show up live in all replicas.
+2. Late-joiners get the same state.
+3. Unhiding browser tab rejoins and gets same state.
+4. Can start with a model to use, e.g., from separate storage.
+
 
 ### From an application perspective:
 
