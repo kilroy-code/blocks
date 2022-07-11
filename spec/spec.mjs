@@ -9,7 +9,7 @@ describe('Replicated', function () {
       .then(async apiKey => {
 	let options = {
 	  appId: "com.ki1r0y.replicated",
-	  name: "x18",
+	  name: Math.random().toString(),
 	  apiKey,
 	  password: "secret",
 	},

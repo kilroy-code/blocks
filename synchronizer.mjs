@@ -1,4 +1,5 @@
 import { Croquet } from "./croquet.mjs";
+import { Block } from "./block.mjs";
 
 function makeResolvablePromise() { // Return a Promise that stores it's resolve() as a property on itself.
   let cleanup, promise = new Promise(resolve => cleanup = resolve);
@@ -14,28 +15,41 @@ export class Synchronizer extends Croquet.View {
   // If we go offline (or suspended), these are null.
   constructor(croquetSpec) {
     super(croquetSpec);
+    console.log('construct Synchronizer', this.id);
     this.croquetSpec = croquetSpec;
     // It isn't documented, but Croquet.View constructor sets session. However, it nulls it before detach() is called.
     this.cachedSession = this.session;
     this.outstanding = 0;
     this.readyPromise = null;
+    this.children = {};
+    for (let name in croquetSpec.children) {
+      const child = this.children[name] = new this.constructor(croquetSpec.children[name]);
+      child.parent = this;
+      child.name = name;
+    }
     this.subscribe(croquetSpec.id, 'setModelProperty', this.setModelProperty);
     if (this.block) this.integrate(this.block);
   }
   detach() { // Called when our session ends by explicit leave or tab hidden.
+    console.log('detach Synchronizer', this.id);
     const block = this.block;
+    if (block) {
+      block.model = this.nakedBlockModel; // Restore the naked, assignable model.
+      block.session = block.synchronizer = null;
+    }
 
-    // FIXME: detach child Synchronizers, restoring their model
-    block.model = this.nakedBlockModel; // Restore the naked, assignable model.
+    const {parent, name, children} = this;
+    if (parent) delete parent.children[name];
+    for (let name in children) children[name].detach();
 
+    // We do NOT clear this.cachedSession/this.block because the session may be restarted and we'll need to know what to integrate.    
+    this.nakedBlockModel = this.children = this.parent = this.name = null;
     super.detach(); // Unsubscribes all.
-    // We do NOT clear this.cachedSession/this.block because the session may be restarted and we'll need to know what to integrate.
-    block.session = block.synchronizer = this.nakedBlockModel = null;
     this.resolveReady() // Just in case someone's waiting.
   }
   // We don't store the block here, because after revealing a hidden tab, the Croquet session will restart with a NEW Croquet.view
   // (which will not have the block attached), and we will need to find that block in order to re-integrate.
-  // The view.id is the same when the same session is re-awakend.
+  // The croquetSpec.id is the same when the same session is re-awakened. (this.id gets a differrent /Vn suffix.)
   get block() {
     const blocks = this.cachedSession?.blocks;
     return blocks && blocks[this.croquetSpec.id];
@@ -44,6 +58,7 @@ export class Synchronizer extends Croquet.View {
     this.cachedSession.blocks[this.croquetSpec.id] = block;
   }
   integrate(block) { // Sets up block.model based on this.spec.
+    console.log('integrate', this.id, block);
     //   Bookkeeping:
     // 1. this.nakedBlockModel = block.model - so that this.detach() can unwrap the proxy.
     //    Populate it from current this.croqetSpec.spec, including children.
@@ -67,13 +82,24 @@ export class Synchronizer extends Croquet.View {
 	return true;
 	}
     });
-    for (let key in spec) { // Initialize rule model properties from Croquet.
-      let value = spec[key];
-      // FIXME: if value.type, expand.
+    // Should we initialize spec from model? In init case, the Spec cannot know about model unless we pass it as an option in the join data.
+
+    // Initialize rule model properties from Croquet spec.
+    for (let key in spec) {
+      let childSynchronizer = this.children[key],
+	  value = spec[key];
+      if (childSynchronizer) {
+	//fixme kill this block[key]?.remove();
+	let childBlock = (block[key] = Block.create(value)); // FIXME: add/remove protocol?
+	childSynchronizer.integrate(childBlock);
+	value = childBlock.model;
+	childBlock.fixme();
+      }
       this.setModelProperty({key, value: value}); // No 'from'.
     }
   }
   setModelProperty({key, value, from}) { // Maintain a model property, and resolveReady if needed.
+    //console.log('set model', this.croquetSpec.id, key, value, from, 'block:', this.block?.fixmeId);
     this.nakedBlockModel[key] = value;
     if (from !== this.viewId) return; // Only count down our own assignments.
     if (--this.outstanding) return;
