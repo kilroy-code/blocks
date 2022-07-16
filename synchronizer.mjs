@@ -20,7 +20,7 @@ export class Synchronizer extends Croquet.View {
     // It isn't documented, but Croquet.View constructor sets session. However, it nulls it before detach() is called.
     this.cachedSession = this.session;
     this.outstanding = 0;
-    this.readyPromise = null;
+    this.readyPromise = this.parent = null;
     this.children = {};
     for (let name in croquetSpec.children) {
       const child = this.children[name] = new this.constructor(croquetSpec.children[name]);
@@ -28,12 +28,14 @@ export class Synchronizer extends Croquet.View {
       child.name = name;
     }
     this.subscribe(croquetSpec.id, 'setModelProperty', this.setModelProperty);
-    if (this.block) this.integrate(this.block);
+    //if (!this.parent)
+      this.integrate(this.block);
   }
   detach() { // Called when our session ends by explicit leave or tab hidden.
     console.log('detach Synchronizer', this.id);
     const block = this.block;
     if (block) {
+      block.remove();
       block.model = this.nakedBlockModel; // Restore the naked, assignable model.
       block.session = block.synchronizer = null;
     }
@@ -55,7 +57,14 @@ export class Synchronizer extends Croquet.View {
     return blocks && blocks[this.croquetSpec.id];
   }
   set block(block) {
-    this.cachedSession.blocks[this.croquetSpec.id] = block;
+    let blocks = this.cachedSession.blocks;
+    if (!blocks) blocks = this.cachedSession.blocks = {};
+    console.log('set block', block, blocks, this.croquetSpec.id);
+    if (block) {
+      blocks[this.croquetSpec.id] = block;
+    } else {
+      delete blocks[this.croquetSpec.id];
+    }
   }
   integrate(block) { // Sets up block.model based on this.spec.
     console.log('integrate', this.id, block);
@@ -67,13 +76,20 @@ export class Synchronizer extends Croquet.View {
     // 3. block.model = Proxy(this.nakedBlockModel) - so assignments to block are replicated.
     // 4. block.spec = this.croquetSpec.spec - so clients can always see the side-effected replicated spec
     // 5. block.synchronizer = this - so clients can leave
+    let nakedBlockModel = this.nakedBlockModel = block?.model || {},
+	croquetSpec = this.croquetSpec,
+	spec = croquetSpec.spec;
+    if (spec.type) {
+      nakedBlockModel = this.nakedBlockModel = Block.createModel(spec);
+    } else {
+      Object.assign(nakedBlockModel, spec);
+    }
+    if (!block) block = new Block(nakedBlockModel);
     const synchronizer = block.synchronizer = this, // Being clear about reference within proxy definition below.
 	  session = this.cachedSession, // Only valid when not detached. Can't integrate a detached Synchronizer.
-	  nakedBlockModel = this.nakedBlockModel = block.model,
-	  croquetSpec = this.croquetSpec,
-	  spec = block.spec = croquetSpec.spec,
 	  id = croquetSpec.id;
     block.session = session;
+    block.spec = spec;
     this.block = block;
     block.model = new Proxy(nakedBlockModel, {
       set(target, key, value, receiver) { // Assignments to model proxy are reflected through Croquet.
@@ -85,9 +101,10 @@ export class Synchronizer extends Croquet.View {
     // Should we initialize spec from model? In init case, the Spec cannot know about model unless we pass it as an option in the join data.
 
     // Initialize rule model properties from Croquet spec.
+    /*
     for (let key in spec) {
-      let childSynchronizer = this.children[key],
-	  value = spec[key];
+      let value = spec[key];
+	let childSynchronizer = this.children[key];
       if (childSynchronizer) {
 	//fixme kill this block[key]?.remove();
 	let childBlock = (block[key] = Block.create(value)); // FIXME: add/remove protocol?
@@ -96,7 +113,7 @@ export class Synchronizer extends Croquet.View {
 	childBlock.fixme();
       }
       this.setModelProperty({key, value: value}); // No 'from'.
-    }
+    } */
   }
   setModelProperty({key, value, from}) { // Maintain a model property, and resolveReady if needed.
     //console.log('set model', this.croquetSpec.id, key, value, from, 'block:', this.block?.fixmeId);

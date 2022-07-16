@@ -22,12 +22,13 @@ describe('Replicated', function () {
 	await block.ready;
 
 	expect(block.model.foo).toBe(17);
-	expect(JSON.stringify(block.spec)).toBe('{"foo":17,"bar":42}');
+	const spec = block.spec;
+	expect(JSON.stringify(spec)).toBe('{"foo":17,"bar":42}');
 	await block.leave();
+	if (Block.Croquet.fake) options.options = spec; // Fake Croquet doesn't persist across sessions.
 
-	if (Block.Croquet.fake) options.options = block.spec; // Fake Croquet doesn't persist across sessions.
-	await block.join(options);
-
+	block = new Block({}); // A late entrant with no state...
+	await block.join(options); // ... can join and catch up.
 	expect(block.model.foo).toBe(17);
 	expect(JSON.stringify(block.spec)).toBe('{"foo":17,"bar":42}');
 	await block.leave();

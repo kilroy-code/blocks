@@ -5,8 +5,9 @@ import { Synchronizer } from "./synchronizer.mjs";
 // A Block always has a model, and has a session IFF it is online.
 export class Block {
   constructor(model) {
-    console.log('construct block', this); //, model.display ? "adding display" : "no display");
+    console.log('construct block', this, model.display ? "adding display" : "no display");
     this.model = model;
+    this.fixme();
   }
   fixme() {
     const {model} = this;
@@ -17,15 +18,21 @@ export class Block {
   }
   remove() {
     console.log('remove block', this);
+    if (this.synchronizer) {
+      this.synchronizer.block = undefined;
+    }
     this.display?.remove(); // fixme: generalize
     this.display = null;
   }
   async join(croquetOptions) { // Join the specified Croquet session, interating our model.
     await this.leave();
-    const options = Object.assign({model: Spec, view: Synchronizer}, croquetOptions),
-	  session = this.session = await Croquet.Session.join(options);
-    session.blocks = {};
+    const session = this.session = await this.constructor.join(croquetOptions);
     session.view.integrate(this); // Integrate us into the session's root view.
+    return session;
+  }
+  static async join(croquetOptions) {
+    const options = Object.assign({model: Spec, view: Synchronizer}, croquetOptions),
+	  session = await Croquet.Session.join(options);
     return session;
   }
   async leave() { // Leave the current synchronizing session, if any.
@@ -37,12 +44,15 @@ export class Block {
   get ready() { // If there is a session, answer a promise that resolves when all our traffic to our view has been reflected.
     return this.synchronizer && this.synchronizer.ready;
   }
-  static create({type, ...properties}) {
-    let constructor = this.types[type],
+  static createModel({type, ...properties}) {
+    let constructor = this.types[type];
 	// FIXME?? Should rules be dynamically created for each property? Here or in the base type for models?
 	// FIXME: How should childspecs be handled within properties?
 	// FIXME: How should top-level block get it's rules?
-	model = new constructor(properties);
+    return new constructor(properties);
+  }
+  static create(properties) {
+    let model = this.createModel(properties);
     return new Block(model);
   }
   static register(type) {
