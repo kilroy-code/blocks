@@ -5,23 +5,19 @@ export class Spec extends Croquet.Model {
   // Croquet MAY call init with the session options and all messages since, OR it may unpickle a snapshot and play messages since that.
   init(spec) {
     super.init();
-    console.log('init Spec', this.id, spec);
-    // spec and children are their own objects so that the namespace is independent of Spec instances.
+    // spec and children are their own objects so that the namespace is independent of Spec instance properties.
     this.spec = spec;
-    this.children = {};
-    this.parent = null;
+    this.children = {};  // Bookkeeping for snapshots.
+    this.parent = null;  // Bookkeeeping for destroy().
     this.subscribe(this.id, 'setSpecProperty', this.setSpecProperty);
-    // FIXME: Understand exactly when init is called relative to new options. Should we drop the options/spec mechanism?
-    for (let key in spec) this.addKey(key, spec[key]);
+    for (let key in spec) this.addKey(key, spec[key]); // Creates child Specs as needed.
   }
   destroy() {
-    console.log('destroy Spec', this.id);
     // Defensive programming: aSpec.destroy() must always clean up in parent.
     // TODO: This is never called by Croquet for the root node, even when explicitly leaving. It can't be called without a replicated event, and we
     // won't get our own leave until we return. How can we clean up?
     const {parent, name, children} = this;
     if (parent) {
-      // FIXME: ??? parent.publish(parent.id, 'setSpecProperty', {key: name});
       delete parent.children[name];
       delete parent.spec[name];
     }
@@ -30,14 +26,14 @@ export class Spec extends Croquet.Model {
     super.destroy();
     return true;
   }
-  setSpecProperty({key, value, from}) { // Update our spec, and reflect to the naked block model.
-    console.log('set spec', this.id, key, value, from);
+  setSpecProperty({key, value, from}) { // Update our spec, and reflect to the naked block model (using the corresponding Synchronizer).
     if (value === undefined) this.removeKey(key);
     else this.addKey(key, value);
     this.publish(this.id, 'setModelProperty', {key, value, from});
   }
   addKey(key, value) {
-    if (!value.type) return this.spec[key] = value; // The assignment is sometimes a no-op.
+    // Construct child Spec named by key if value.type is present, else just set the value in spec.
+    if (!value.type) return this.spec[key] = value; // The assignment is often a no-op.
     if (this.children[key]?.spec === value) return;
     const child = this.children[key] = this.constructor.create(value);
     child.name = key;

@@ -5,7 +5,6 @@ import { Synchronizer } from "./synchronizer.mjs";
 // A Block always has a model, and has a session IFF it is online.
 export class Block {
   constructor(model) {
-    console.log('construct block', this, model.display ? "adding display" : "no display");
     this.model = model;
     this.fixme();
   }
@@ -17,7 +16,6 @@ export class Block {
     }
   }
   remove() {
-    console.log('remove block', this);
     if (this.synchronizer) {
       this.synchronizer.block = undefined;
     }
@@ -33,7 +31,7 @@ export class Block {
   static async join(croquetOptions) {
     const options = Object.assign({model: Spec, view: Synchronizer}, croquetOptions),
 	  session = await Croquet.Session.join(options);
-    return session;
+    return session.view.block;
   }
   async leave() { // Leave the current synchronizing session, if any.
     const session = this.session;
@@ -45,17 +43,15 @@ export class Block {
     return this.synchronizer && this.synchronizer.ready;
   }
   static createModel({type, ...properties}) {
+    if (!type) return properties; // Just a POJO, copied.
     let constructor = this.types[type];
-	// FIXME?? Should rules be dynamically created for each property? Here or in the base type for models?
-	// FIXME: How should childspecs be handled within properties?
-	// FIXME: How should top-level block get it's rules?
     return new constructor(properties);
   }
   static create(properties) {
     let model = this.createModel(properties);
     return new Block(model);
   }
-  static register(type) {
+  static register(type) { // Make a model type known.
     this.types[type.name] = type;
   }
 }
