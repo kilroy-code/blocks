@@ -39,13 +39,17 @@ export class Synchronizer extends Croquet.View {
       block.session = block.synchronizer = null;
     }
 
+    // I don't yet know if we should clear this.cachedSession/this.block or whether we'll want to identify the block for a detched view.
+    // We certainly don't want to do so for the root Synchronizer, so that any application-cached root block is reused with new online info.
+    // But should we also reuse the others? Maybe only free these up when we leave()?
+    if (this.parent) {
+      this.cachedSession = this.block = undefined;
+    }
+
     // Clean up us and our children from parents.
     const {parent, name, children} = this;
     if (parent) delete parent.children[name];
     for (let name in children) children[name].detach();
-
-    // I don't yet know if we should clear this.cachedSession/this.block or whether we'll want to identify the block for a detched view.
-    this.cachedSession = this.block = undefined;
 
     this.nakedBlockModel = this.children = this.parent = this.name = null;
     super.detach(); // Unsubscribes all.
@@ -53,15 +57,24 @@ export class Synchronizer extends Croquet.View {
   }
   integrate() { // Sets up block.model based on this.spec.
     const croquetSpec = this.croquetSpec,
-	spec = croquetSpec.spec,
-	nakedBlockModel = this.nakedBlockModel = Block.createModel(spec),
-	block = new Block(nakedBlockModel);
-    const synchronizer = block.synchronizer = this, // Being clear about reference within proxy definition below.
+	  spec = croquetSpec.spec,
 	  session = this.cachedSession, // Only valid when not detached. Can't integrate a detached Synchronizer.
 	  id = croquetSpec.id;
+
+    let block = this.block, nakedBlockModel = block?.model;
+    if (!block) {
+      nakedBlockModel = Block.createModel(spec);
+      block = new Block(nakedBlockModel);
+    }
+    this.nakedBlockModel = nakedBlockModel;
+    const synchronizer = block.synchronizer = this; // Being clear about reference within proxy definition below.
+
     block.session = session;
     block.spec = spec;
     this.block = block;
+    for (let name in this.children) {
+      nakedBlockModel[name] = this.children[name].block.model; // Children are created first, so child.model is a Proxy.
+    }
     block.model = new Proxy(nakedBlockModel, {
       set(target, key, value, receiver) { // Assignments to model proxy are reflected through Croquet.
 	++synchronizer.outstanding;
@@ -70,21 +83,20 @@ export class Synchronizer extends Croquet.View {
 	}
     });
   }
-  setModelProperty({key, value, from}) { // Maintain a model property, and resolveReady if needed.
+  setModelProperty({key, value, from, spec}) { // Maintain a model property, and resolveReady if needed.
+
+    // In July 2022, Croquet.OS does not support running two session sessions in the same browser. But we do that in our test suites.
+    // The specific problem in current Croquet.OS is that view subscriptions are global. E.g., someone publishes setSpecProperty,
+    // the models in N session instances receive and publish setModelPropery, and each of the N session instances executes N setModelProperty
+    // events instead of just 1. This is no problem when N=1 session per browser, but during unit testing with N>1, this throws off
+    // this.outstanding, because we increment once, and decrement N times. We work around that by having setModelProperty pass the Spec
+    // that published it, and here we simply ignore any that are not from our Spec.
+    if (spec !== this.croquetSpec) return;
+
     this.nakedBlockModel[key] = value;
     if ((value === undefined) && this.parent) this.detach();
     if (from !== this.viewId) return; // Only count down our own assignments.
-    // Subtle: It ought to be ok to just do:
-    //   if (--this.outstanding) return;
-    // But that fails in the unusual case of two identical session instances running in the same browser tab (e.g., in a test suite).
-    // Such behavior isn't currently supported by Croquet, and so each session instance executes each view->model messages
-    // rather than just the one that was sent by the reflector to that particular session instance.
-    // We can't really fix that from here, but the result in this case is that each session instance receives twice as
-    // many calls to this method as we should. This works around that, ASSUMING that one waits for all messages to be
-    // received by all session instances. (Which is a big assumption!)
-    if (--this.outstanding > 0) return;
-    if (this.outstanding < 0) this.outstanding = 0;
-
+    if (--this.outstanding) return;
     this.resolveReady();
   }
   resolveReady() { // Resolve readyPromise, if any.
@@ -96,7 +108,7 @@ export class Synchronizer extends Croquet.View {
     if (this.readyPromise) return this.readyPromise;
     return this.readyPromise = makeResolvablePromise();
   }
-  /* See comment for this.block = undefined, above.
+  ///* See comment for this.block = undefined, above.
   // We don't store the block here, because after revealing a hidden tab, the Croquet session will restart with a NEW Croquet.view
   // (which will not have the block attached), and we will need to find that block in order to re-integrate.
   // The croquetSpec.id is the same when the same session is re-awakened. (this.id gets a differrent /Vn suffix.)
@@ -113,5 +125,5 @@ export class Synchronizer extends Croquet.View {
       delete blocks[this.croquetSpec.id];
     }
   }
-  */
+  //*/
 }

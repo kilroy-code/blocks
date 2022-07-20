@@ -16,16 +16,13 @@ export class Block {
     }
   }
   remove() {
-    if (this.synchronizer) {
-      this.synchronizer.block = undefined;
-    }
     this.display?.remove(); // fixme: generalize
     this.display = null;
   }
   async join(croquetOptions) { // Join the specified Croquet session, interating our model.
     await this.leave();
     const session = this.session = await this.constructor.join(croquetOptions);
-    session.view.integrate(this); // Integrate us into the session's root view.
+    // fixme: not needed any more? session.view.integrate(this); // Integrate us into the session's root view.
     return session;
   }
   static async join(croquetOptions) {
@@ -55,6 +52,6 @@ export class Block {
     this.types[type.name] = type;
   }
 }
-Block.types = {};
+Block.types = {Object};
 Block.Croquet = Croquet; // So test code can tell if Croquet.fake is true.
 

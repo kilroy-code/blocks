@@ -1,5 +1,7 @@
 import { Croquet } from "./croquet.mjs";
 
+var modelCounter = 0;
+
 // Applications don't see these. Internally, their job is to generically hold all the non-default state of the application.
 export class Spec extends Croquet.Model {
   // Croquet MAY call init with the session options and all messages since, OR it may unpickle a snapshot and play messages since that.
@@ -29,7 +31,7 @@ export class Spec extends Croquet.Model {
   setSpecProperty({key, value, from}) { // Update our spec, and reflect to the naked block model (using the corresponding Synchronizer).
     if (value === undefined) this.removeKey(key);
     else this.addKey(key, value);
-    this.publish(this.id, 'setModelProperty', {key, value, from});
+    this.publish(this.id, 'setModelProperty', {key, value, from, spec:this});
   }
   addKey(key, value) {
     // Construct child Spec named by key if value.type is present, else just set the value in spec.
