@@ -1,5 +1,226 @@
 # Blocks
 
+> Abstract: Blocks provide a basic unit of abstraction by which end-users can interactively create live multi-user Web applications as they are running those applications, using separately written code for local-only visual and interactive behavior. It does not use an application server.
+
+A Block is a generic object that can be composed, decomposed, and modified in a Web browser.
+- Arbitrarily named "sessions" can be created. Users can come and go from the session, and each will recreate the same Block structure, which will stay in sync for each user as properties are changed, and as Blocks are added and removed.
+- Each Block may have components that represent various views of the data - either external objects such as DOM Elements, a Three.js Mesh, etc. - or the compnents may be other Blocks that are synchronized by other sessions concurrently with the first.
+
+
+A Block consists of one "model", and zero or more other components:
+- The model is what stays in sync. There are no restrictions on how the model is implemented - it can inherit from any class - but it is treated as a bag of properties. When a property is set, all the session participants will have the same property set in their model.
+- The components can be other Blocks, or they can be opaque external objects.
+The components are built automatically on-demand from the information in the model.
+When components are other Blocks, their models can be replicated in the same session, in different sessions, or they can not be part of any session at all.
+Typically, the components are displayed to the user, with event handlers that set the properties of the model (which is then automatically replicated among all users in the session).
+- Internally, there is also a "spec", which is a JSON-serializable Plain-Old Javascript Object (aka a POJO), that represents all the non-default values of the model. This is what is used to replicate the model, and can be serialized to externalize the model outside the session.
+
+You can think of a Block as being like an atom or cell, and the model as the nucleus. (The spec is like DNA.)
+
+You can also think of the model and the other components as being like a model and various views. External components and their handlers, and the Block machinery itself, are like a controller in a Model-View-Controller architecture (aka MVC). However, unlike MVC, a Block can be both a "model" and a "view" - e.g., a Block can have a "view" component that is another Block and thus has its own model.
+
+When an application goes offline and rejoins, the local model "catches up" to any changes made by others. In addition, if the local user can make local changes while offline, and these changes are applied when the user rejoins the session. The same mechanism can be used to make "recordings" that animate or automate groups of Blocks.
+
+
+## API
+
+## Implementation
+
+
+
+## Internal notes
+
+purpose is to make models work identically in each participant, so that a change to any property is matched by all participants
+to do this without message storms, we need to distinguish  between internal and external messages, example between views and models vs model to model. 
+Talk about not knowing senders and the that it's the external sender.
+Could maybe partition in time, so that externally-driven state is done in one step and then internal response is done a separate step without wire messages.
+We use proxies...
+
+problems requiring disciplined modeling:
+- Identity: Identity of an object cannot depend on it's parent, else it cannot be used in multiple places. But what does "depend" mean? The object CAN take an input (like 'content' or 'parent') and have computed values that depend on that input. The computed values are not part of the identity. However, those computations cannot have side-effects that assign identity values.
+- Session: To prevent message storms, we must be able to distinguish between internal and external messages. With that distinction modeled by proxies, a block can directly refer to other blocks within it's session, but must not have access to anything outside. Meanwhile, blocks outside of any session must refer to other blocks only through proxies.
+
+problem: (block.model.someChild.someProperty = newValue)   ...will only be replicated if someChild is a proxy.
+So it has to be included in the assembly children in Block and CroquetModel.
+That will be the case for any children created by assignment in the session, but not by those created by internal rules invoked by constructor.
+I.e., all actions taken by constructor code will be properly replicated, but the explicit recognition of children only happens in the Block.
+There are a couple of potential ways to deal with this:
+- Prohibit it. Insist that initial spec be fully expanded. After all, our persistence spec will reference identityTags that also need to be expanded.
+- Recognize it in some way, and treat recognized internally-generated children as if they were explicitly in the spec:
+  -- Enumerate properties (of instance and all through prototype chain because prototype properties are not own enumerables) and detect (how?) those that can be made explicit.
+  -- Ask some object (which? model?) for its expanded spec, and somehow (how?) do a local "re-initialize" based on that.
+Proposed: don't solve this yet (effectively "prohibiting" it for now) until we build persistence. E.g., we're going to eventually have a running session in which a user asks the root to "undo" back to a previous identityTag within the session. Let's use that use-case to figure it out. E.g., maybe we tear everything down except for a placeholder root (that isn't externally persisted and just has the identityTag of the root object), and fetch the root object, and then expand it one step at a time with explicit assignments. Who does that as as to avoid an update storm?
+
+problem: which is maybe part of the answer to the previous....
+How do we get the right effects wrt children from internal messages.
+Possible answer involves setting parent.
+Possible answer - createModel?
+
+
+root:Block:#A
+
+  template:Pair:#1
+    child1:Positioned:#2
+
+  display:Body
+    display:<body>
+  
+  child1:Block:#B
+    template:Positioned:#2
+    
+    display:Box
+      display:<div>
+      block:#B
+      
+    Xdisplay:Block#C
+      template:Box:#3
+        block:#C
+	model:#2  or is this always going to be block.parent.model ?
+      display:<div>
+
+/content/
+  /content/child1/
+
+/interactor/
+  display:<body>
+  
+  /interactor/box1/
+    content:/content/child1/
+    display:<box>
+    
+    /interactor/box1/pointerdown/
+      content:/interactor/box1/
+      
+      
+philisophical:
+- What is the narrowest feedback mechanism that meets our needs (e.g., around creation, destruction, changing parent, changing geometry)?
+- What are the minimum responsibilities & guarantees, and how can they be separated/orthogonalized to remain robust?
+
+yin and yang of what and why:
+purpose: component semantics for model & views, in which even display Blocks can be synchronized. (spatial recursion: turtles all the way down)
+connection: Rules allow dynamic combination (e.g., attachment) of models and views, internally keeping track of dependencies in a principled way.
+
+metacircularity
+
+does not depend on or require Rules, but is designed with them in mind.
+model - a graph of instances that have behavior (e.g., some combination of rules, methods, and state)
+spec - a JSON-serializable form of the model. e.g., all the information necessary to reproduce the model.
+       In ki1r0y, this means all the assigned values overriding the rule behavior - i.e., the non-default behavior.
+
+
+A block may be online or off:
+  When online, it is connected to Croquet session and the block's model stays in sync with all other online users.
+  When offline, changes are captured so that they can be replayed to the session when the block comes online again:
+    For anything not owned by a team (and most of the time even then), no one else has changed anything while the author was offline.
+    Otherwise, a team composition might have been changed. The approach is to make the changes (creating or recreating missing object as needed), and let people sort it out just as they would for changes made online while the other owner was absent.
+The transition from offline to online is fraught. We make no attempt to merge results. Instead, the online session is always the basis, and any recorded offline changes are played against it as if they were new.
+
+When a Croquet session suspends, it always tears down all the view code, and then recreates it when it comes online. If nothing has changed, that would look the same, but if it has changed, the Croquet or user code would be in the position of trying to figure out how to merge them. Thus a pause/resume will have the views torn down and recreated by Croquet, and we wouldn't be able to use them even if we thought we could. We take the same approach with offline/online - tearing everything down and recreating from the spec.
+
+
+spec - serializable form of model, used by CroquetModel and persistence.
+- POJO used directly for "children". No class and no assembly.
+- Cannot reference non-specs.
+- For now, embeds child specs directly, but later that might be "input specs" with a hash.
+
+model - The live data to be synchronized.
+- Created from spec, using registered 'type' property of spec. No common base type (can even be type:'Object').
+- The model must see only other models (no Blocks, Proxies, etc.)
+
+Block - A packaging of the model and spec, plus any active views (other blocks), and external components (such as displays, event handlers, or Synchronizers).
+- assembly: parent, and named child collection:
+  The model may have arbitrarily named properties whose values are other models - i.e., "child" models.
+  Some block operations need to identify whether a model property name is one of these, and some need to identity that other model that has a given model as a named child - i.e., "parent" model.
+  However:
+    The block may actually need to know the corresponding child block or parent block, rather than the model, and the model cannot contain any block references.
+    The child names could be anything, including the same names as other block properties.
+    The model children can be of any time, with new specific base class, so there is no instanceof test for whether a given property names a child.
+  So, Blocks have an assembly property, of type Assembly.
+  CroquetModel also has an assembly property, in which the parent/children are other CroquetModels (which cannot refere to Blocks or models).
+- Any Block in the hierarchy can define a recording for all descendent blocks to use. A block may be part of multiple simultaneous recordings.
+  We don't want each recordable action to have to look up the parent chain for all recorders, so there are methods to addRecorder/removeRecorder for all descendants.
+- synchronizer property:
+  self when offline
+  a Synchronizer (Croquet.View) when connected.
+- The model property is a proxy:
+  A property read is intercepted IFF the property names a child, in which case the child block's model proxy is returned. Thus assignments to THAT are intercepted.
+    The underlying model cannot have child properties that are proxies, because then model-to-model assignments through a child would cause an update storm on the network.
+  There are three steps for assignment:
+    Add {block, key, value, timestamp} to all the Blocks recorders.
+    synchronizer.setSpecProperty updates the corresponding spec, if any (deleting the property if the value is undefined), and arranging for setModelProperty to be invoked.
+      If offline (synchronizer === self)
+      	No need to modify spec, as it is not used offline.
+	call setModelProperty.
+      If online, publish setSpecProperty from the Synchronizer:
+        Subscribed by CroquetModel, which....
+	Sets/deletes from it's spec:
+	  As a special case, if key is 'parent', don't set the property (specs don't have a parent property),
+	    If there's an old parent, remove us from its assembly and spec.
+	    If there's a new parent, add our name as a child of the new parent, and our our spec as property in new parent's spec.
+	  If the key names an existing child, destroy it.
+	  Set the spec value.
+	  If value is an object with a 'type' property, create the tracked child object with the value as args, and named by key.
+	(To destroy a CroquetObject, remove from parent assembly and spec, and destroy its children.)
+	Publishes setModelProperty, which is subscribed by corresponding Synchronizer and calls same on the block (which means the Synchronizer must know it's block).
+    setModelProperty, which actually sets the underlying model's value.
+      roughly: same as CroquetModel.setSpecProperty, but
+        assigning expanded-to-model values to model
+	adding/removing block children.
+	creating synchronizers if online.
+- When we join a session:
+  The session block root will conform to the new session state, not the old offline state.
+  The recordings will reference old blocks that may or may not appear in the new session blocks.
+  When we create Sychronizer, we re-use the existing Block by croquetModel id, if any. (This means the session map of id => Block must not be cleared when we leave or pause the session.)
+  New Synchronizers and new Blocks are created at the same time by setModelProperty.
+
+model can reference parent, child
+model does not reference views, block IF the model is replicated (because the properties of block may be different for different users).
+  How do we model views that reference display?
+    Maybe display is special? Maybe block and/or display is a proxy within model?
+    Maybe it just can't assign a display, but can still reference it?
+    => Actions are imperitive code that happens on an individual user's system, often causing replicated assignments to the model, as well as other local-only changes.
+       Actions are attached to blocks as components, in which the model describes some parent path defining inheritance. E.g., a root view block defining a DOM hierarchy.
+       Creating a block invokes the display action. For a DOM heirarchy, this creates the model (and attaches it?), uses that to discover what kind of DOM Element to create,
+         creates the Element and assigns it to the block, and updates it.
+       Action handlers have access to the block (how...?) and can do things to the display. (Maybe the DOM event handler closes over the block? In any case, I don't think
+         we want or need for external components to have references to the block. Be sure to remove handlers when detaching!)
+       ?? But how does rules involving update access the display????
+block references each component (but reference to model is actually a proxy that either stores or broadcasts assignments)
+block does not reference parent, child (meaningless, as different components have different parent/child relationships)
+model produces spec?
+block produces block/model from spec?
+  Does it "add" the block (as a component) or model (as a child)
+  Is that the same for a component and a child? How do we know which to do?
+  Is there a difference between assigning spec value to a model, vs attaching a component?
+  How is it hooked/customized? E.g., dynamically attaching a tracking rule in the model if one does not already exist
+when changing a model node from one parent to another, is that...
+  a single assignment of a new value for parent?
+  or a reset of previous parent's name value followed by an assignment of a new parent's name value?
+  => I think we need to distinguish between deleting a node vs resetting property vs deleting a property
+adding component to a block must be lazy/demand-driven, and not occur merely because the model has specified how. (Otherwise we'll have infinite expansions.)
+   Maybe each component's 'block' property is actually a proxy that expands refererences when not already cached?
+   We don't always want to always add something locally - e.g., it ought to be possible to specify a delegating event handler at the root (of what? a view tree?) that will handle events on lower nodes, without actually creating the handler on the lower nodes.
+      Maybe expanding a requested property either does not look up tree,
+      or maybe it looks up tree to find the info for expanding, but then adds it where that info is rather than on the receiver?
+
+
+issue: 1. croquet has model/view, but the same object cannot be both. 2. croquet models cannot be arbitrary instances (such as DOM elements or Rules) -- Actually, a Croquet.Model CAN reference a Rule, but it cannot reference a Rule that also references Crqouet.View objects.
+So...
+- Each Block has one model, that is synchronized through Croquet. (Also saves changes when offline so that it can be rejoined to session when it comes online again.)
+- Each Block can have zero or more other components attached to it (or removed from it), that are themselves either Blocks or opaque external objects (such as DOM elements).
+- Any Block can be synchronized through Croquet to exactly one Croquet session, which synchronizes the model only (ignoring the other components). There can be multiple Croquet sessions, with some Blocks belonging to one Session, and other Blocks belonging to another Session.
+
+A typical pattern is:
+- Application has two display areas:
+   -- A content area that is the same "content" for each user, although individual users have different scroll positions, camera rotations, etc.
+   -- An inspector area that is specific to each user, allowing each to inspect one of the objects in the content.
+      Changes to properties in the inspector are instantly reflected in the content area dispaly for all users.
+- Each object in the application is a Block:
+  -- The Block's model has rules that specify the model's properties and the Rules for how they interact. The Block machinery arranages to automatically keep this model in sync, such that changes to any such model property are reflected among all the Session's particpants. For example, maybe there is such a property called "label" whose value is a string.
+  -- The content view is another Block, whose model specifies how it is displayed. For example, it might be a span of inline text, whose display always refelects the value of the the model.text. The content Block itself has an external component that is the DOM SPAN Element.  In this example, this content view Block is not connected to a Croquet Session.
+  
+
+
 Uses Croquet to keep models in sync among all users.
 
 1. Assign properties, and values automatically show up live in all replicas.
@@ -77,17 +298,6 @@ Media Component Example - Code:
       If the machinery tracks dependencies (which it should), then the new version will be loaded, AND anything dependent on the registration
       machinery will be reset.
 
-kill me notes:
-referenced
-eager
-eager
-checking count 2
-reset
-eager      <= we don't want this
-checking count 3 <= we want 2 still
-//eager <= we do want this now, not cached
-checking count 3
-
 Gesture Example - positioning content with a specific handler (e.g, not event delegation)
   DOM display object has a pointerdown handler.
   Dynamically attaches pointermove, touchmove, and pointerup DOM handlers to the associated display object.
@@ -160,3 +370,19 @@ Here the words "model" and "view" are used differently between the application a
 The Spec is a Croquet.Model, which keeps a dictionary of properties that is synchronized through Croquet in the normal way. It subscribes to a 'setSpecProperty' Croquet-model event that assigns the property in the dictionary. The handler then fires a 'setRuleModelProperty' Croquet-view event.
 
 The Block is a Croquet.View that subscribes to the 'setBlockModelProperty' event, which sets the property in the block model. The "model" property that is seen from the Block is actually a Proxy that allows reading, but which traps assignments to publish the 'setSpecProperty' event.
+-----------
+/
+  synchronized
+    chat
+    content
+      section
+        heading
+	paragraph
+    avatars
+      me
+      you
+  private
+    scene
+    inspector
+    chatlog
+    

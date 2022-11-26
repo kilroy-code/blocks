@@ -1,0 +1,15 @@
+{
+  "name": "@kilroy-code/block",
+  "version": "1.0.0",
+  "main": "index.mjs",
+  "scripts": {
+    "test": "jasmine"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@kilroy-code/croquet-in-memory": "1.0.0",
+    "@kilroy-code/hidden-tab-simulator": "1.0.0",
+    "jasmine": "^3.5.0"
+  }
+}
