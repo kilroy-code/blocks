@@ -1,12 +1,26 @@
 {
   "name": "@kilroy-code/block",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "main": "index.mjs",
   "scripts": {
     "test": "jasmine"
   },
-  "author": "",
-  "license": "ISC",
+  "author": {
+    "name": "Howard Stearns",
+    "email": "howard@ki1r0y.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kilroy-code/block.git"
+  },
+  "homepage": "https://github.com/kilroy-code/block#readme",
+  "bugs": {
+    "url": "https://github.com/kilroy-code/block/issues"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/kilroy-code"
+  },
   "devDependencies": {
     "@kilroy-code/croquet-in-memory": "1.0.0",
     "@kilroy-code/hidden-tab-simulator": "1.0.0",
