@@ -5,12 +5,8 @@ import { getKey } from '../../api-key/index.mjs';
 import { Synchronizer } from '../index.mjs';
 import { Assembly } from '../assembly.mjs';
 import { simulateVisibility } from '../../hidden-tab-simulator/index.mjs';
+import { delay } from '../../utilities/delay.mjs';
 
-function tick(ms = 50) {
-  // When there are two participants in the same session, there is no guarantee that they will step together.
-  // This delay allows each session time to receive and act on messages.
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 Croquet.App.root = false; // Disable the default Croquet overlay so we can see Jasmine report from start to finish.
 describe('Block', function () {
@@ -210,40 +206,44 @@ describe('Block', function () {
 	  });
 	  // FIXME: block properties
 	  it('adds, changes, and removes properties.', async function () {
-	    expect(getFirstParentBlock().model.someKey).toBeUndefined();
+	    let firstParent = getFirstParentBlock(),
+		lastParent = getLastParentBlock(),
+		firstChild = getFirstChildBlock(),
+		lastChild = getLastChildBlock();
+	    expect(firstParent.model.someKey).toBeUndefined();
 
-	    getFirstParentBlock().model.someKey = 3; // Create it.
-	    await getFirstParentBlock().ready;
-	    expect(getFirstParentBlock().model.someKey).toBe(3);
-	    await tick();
+	    firstParent.model.someKey = 3; // Create it.
+	    await firstParent.ready;
+	    expect(firstParent.model.someKey).toBe(3);
+	    await delay();
 	    blocks.forEach(block => expect(block.model.someKey).toBe(3));
 
-	    getLastParentBlock().model.someKey = 99; // Change it, maybe from a different user.
-	    await getLastParentBlock().ready;
-	    await tick();
+	    lastParent.model.someKey = 99; // Change it, maybe from a different user.
+	    await lastParent.ready;
+	    await delay();
 	    blocks.forEach(block => expect(block.model.someKey).toBe(99));
 
-	    getLastParentBlock().model.someKey = undefined; // Remove it.
-	    await getLastParentBlock().ready;
-	    await tick();
+	    lastParent.model.someKey = undefined; // Remove it.
+	    await lastParent.ready;
+	    await delay();
 	    blocks.forEach(block => expect(block.model.someKey).toBeUndefined());
 
 	    // And in children:
-	    getFirstChildBlock().model.someKey = 4; // Create it.
-	    await getFirstChildBlock().ready;
-	    expect(getFirstChildBlock().model.someKey).toBe(4);
-	    await tick();
+	    firstChild.model.someKey = 4; // Create it.
+	    await firstChild.ready;
+	    expect(firstChild.model.someKey).toBe(4);
+	    await delay();
 	    blocks.forEach(block => expect(getChildA(block).model.someKey).toBe(4));
 
-	    getLastChildBlock().model.someKey = 5; // Change it.
-	    await getLastChildBlock().ready;
-	    expect(getLastChildBlock().model.someKey).toBe(5);	  
-	    await tick();
+	    lastChild.model.someKey = 5; // Change it.
+	    await lastChild.ready;
+	    expect(lastChild.model.someKey).toBe(5);
+	    await delay();
 	    blocks.forEach(block => expect(getChildA(block).model.someKey).toBe(5));
 
-	    getFirstChildBlock().model.someKey = undefined; // Remove it.
-	    await getFirstChildBlock().ready;
-	    await tick();
+	    firstChild.model.someKey = undefined; // Remove it.
+	    await firstChild.ready;
+	    await delay();
 	    blocks.forEach(block => expect(getChildA(block).model.someKey).toBeUndefined());
 	  });
 	  it('counts multiple rapid sends.', async function () {
@@ -260,27 +260,27 @@ describe('Block', function () {
 	    await Promise.all([getFirstParentBlock().ready, getFirstChildBlock().ready]);
 	    expect(getFirstParentBlock().model.counter).toBe(p);
 	    expect(getFirstChildBlock().model.counter).toBe(c);
-	    await tick();
+	    await delay();
 	    blocks.forEach(block => expect(getFirstParentBlock().model.counter).toBe(p));
 	    blocks.forEach(block => expect(getFirstChildBlock().model.counter).toBe(c));
 	    // Now clean up from test.
 	    getFirstParentBlock().model.counter = undefined;
 	    getFirstChildBlock().model.counter = undefined;
 	    await Promise.all([getFirstParentBlock().ready, getFirstChildBlock().ready]);
-	    await tick();
+	    await delay();
 	  });
 	  it('sends all messages, even when we get throttled.', async function () {
-	    let p = 0, c = 0;
+	    let p = 0, c = 0, block = getFirstParentBlock();
 	    function sendParent(n) {
-	      for (let i = 0; i < n; i++) getFirstParentBlock().model.counter = ++p;
+	      for (let i = 0; i < n; i++) block.model.counter = ++p;
 	    }
 	    sendParent(100);
-	    await getFirstParentBlock().ready;
-	    expect(getFirstParentBlock().model.counter).toBe(p);
+	    await block.ready;
+	    expect(block.model.counter).toBe(p);
 	    // cleanup
-	    getFirstParentBlock().model.counter = undefined;
-	    await getFirstParentBlock().ready;
-	    await tick();
+	    block.model.counter = undefined;
+	    await block.ready;
+	    await delay();
 	  });
 	});
 	describe('dynamic children', function () {
@@ -289,7 +289,7 @@ describe('Block', function () {
 	    getFirstParentBlock().model.added = {type: 'Object', x: 1, y: "b"};
 	    getFirstChildBlock().model.added = {type: 'Registered', x: 11, y: "bb"};
 	    await Promise.all([getFirstParentBlock().ready, getFirstChildBlock().ready]);
-	    await tick();
+	    await delay();
 	    addedBlockToParent = getFirstParentBlock().getChild('added');
 	    addedBlockToChild = getFirstParentBlock().getChild('childA').getChild('added');
 	  });
@@ -297,7 +297,7 @@ describe('Block', function () {
 	    getFirstParentBlock().model.added = undefined;
 	    getFirstChildBlock().model.added = undefined;
 	    await Promise.all([getFirstParentBlock().ready, getFirstChildBlock().ready]);
-	    await tick();
+	    await delay();
 	    expect(getFirstParentBlock().model.added).toBeUndefined(); // Check that objects get removed.
 	    expect(getLastChildBlock().model.added).toBeUndefined();
 	  });
@@ -318,7 +318,7 @@ describe('Block', function () {
 	  it('references through model child properties also detect modifications.', async function () {
 	    getFirstParentBlock().model.childA.added.more = 99;
 	    await addedBlockToChild.ready;
-	    await tick();
+	    await delay();
 	    expect(getLastParentBlock().model.childA.added.more).toBe(99);
 	  });
 	  it('generates path.', function () {
@@ -391,11 +391,11 @@ describe('Block', function () {
 
 	      await goOnline();
 	      checkOnline();
-	      await tick(200);
+	      await delay(200);
 	      blocks.forEach(root => expect(getChildA(root).model.someKey).toBe(dummy));
 	      getFirstChildBlock().model.someKey = undefined;
 	      await getFirstChildBlock().ready;
-	      await tick();
+	      await delay();
 	    }, 15000);
 	  }
 	  if (online) {

@@ -1,6 +1,6 @@
 {
   "name": "@kilroy-code/block",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "index.mjs",
   "scripts": {
     "test": "jasmine"
@@ -22,8 +22,8 @@
     "registry": "https://npm.pkg.github.com/kilroy-code"
   },
   "devDependencies": {
-    "@kilroy-code/croquet-in-memory": "1.0.0",
-    "@kilroy-code/hidden-tab-simulator": "1.0.0",
+    "@kilroy-code/croquet-in-memory": "0.0.1",
+    "@kilroy-code/hidden-tab-simulator": "0.0.1",
     "jasmine": "^3.5.0"
   }
 }
