@@ -1,6 +1,6 @@
 {
   "name": "@kilroy-code/block",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "main": "index.mjs",
   "scripts": {
     "test": "jasmine"
@@ -20,6 +20,9 @@
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com/kilroy-code"
+  },
+  "dependencies": {
+    "@kilroy-code/utilities": "^1.0.3"
   },
   "devDependencies": {
     "@kilroy-code/croquet-in-memory": "0.0.1",
