@@ -255,9 +255,9 @@ describe('Croquet Block', function () {
 	    expect(detachedViews - startDetached).toBe(2 * blocks.length);
 	  });
 	  it('added child is as connected as the parent.', function () {
-	    const rootModel = getFirstParentBlock().messenger.viewModel;
-	    expect(addedBlockToParent.messenger.viewModel.parent).toBe(rootModel);
-	    expect(addedBlockToChild.messenger.viewModel.parent.parent).toBe(rootModel);
+	    const rootTemplate = getFirstParentBlock().template;
+	    expect(addedBlockToParent.template.parent).toBe(rootTemplate);
+	    expect(addedBlockToChild.template.parent.parent).toBe(rootTemplate);
 	  });
 	  it('adds registered type as child.', async function () {
 	    let parentAddedModel = getLastParentBlock().template.getChild('added'),
@@ -305,7 +305,7 @@ describe('Croquet Block', function () {
 	    // I'd rather contort things (here and goOnline and visibilityChange) to just take one offline...
 	    //await blocks[0].leave();
 	    // ...but my croquet-in-memory implementation isn't robust enough.
-	    await Promise.all(blocks.map(block => block.messenger.leave()));
+	    await Promise.all(blocks.map(block => block.leave()));
 	  }
 	  async function goOnline() {
 	    //blocks = await Promise.all(blocks.map(block => block.join(specOptions))); // TODO: when we have offline usage, something like this would be used instead.
@@ -318,7 +318,7 @@ describe('Croquet Block', function () {
 	    blocks.forEach(block => expect(block.isOnline && label).toBe(label));
 	  }
 	  async function visibilityChange(visibility) {
-	    const promise = blocks.map(block => block.messenger.cachedSession.pauseChange),
+	    const promise = blocks.map(block => block.pauseChange),
 		  start = Date.now();
 	    await simulateVisibility(visibility);
 	    const state = await Promise.all(promise);

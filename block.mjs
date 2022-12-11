@@ -88,4 +88,5 @@ export class CroquetBlock extends Block(View(Croquet.View)) {
     if (children.length) copy.specs = children;
     return copy;
   }
+  // Note: In this configuration, we already have access to ready, pauseChange, and leave().
 }

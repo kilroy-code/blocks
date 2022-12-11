@@ -89,5 +89,7 @@ export const View = (superclass) => class extends superclass {
   get isOnline() {
     return !!this.session;
   }
-  
+  get pauseChange() {
+    return this.cachedSession.pauseChange;
+  }
 }
