@@ -1,5 +1,5 @@
 import { Rule } from '@kilroy-code/rules/index.mjs';
-import { getKey } from '@kilroy-code/api-key/index.mjs';
+import { getKey } from '@kilroy-code/api-keys/index.mjs';
 import { simulateVisibility } from '@kilroy-code/hidden-tab-simulator/index.mjs';
 import { delay } from '@kilroy-code/utilities/delay.mjs';
 import { Croquet } from '@kilroy-code/utilities/croquet.mjs';
