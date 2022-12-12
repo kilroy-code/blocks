@@ -1,6 +1,6 @@
 {
-  "name": "@kilroy-code/block",
-  "version": "0.0.3",
+  "name": "@kilroy-code/blocks",
+  "version": "0.0.4",
   "main": "index.mjs",
   "scripts": {
     "test": "jasmine"
@@ -12,11 +12,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kilroy-code/block.git"
+    "url": "git+https://github.com/kilroy-code/blocks.git"
   },
-  "homepage": "https://github.com/kilroy-code/block#readme",
+  "homepage": "https://github.com/kilroy-code/blocks#readme",
   "bugs": {
-    "url": "https://github.com/kilroy-code/block/issues"
+    "url": "https://github.com/kilroy-code/blocks/issues"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
