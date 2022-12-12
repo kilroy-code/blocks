@@ -1,6 +1,6 @@
 {
   "name": "@kilroy-code/blocks",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "main": "index.mjs",
   "scripts": {
     "test": "jasmine"
@@ -23,10 +23,10 @@
   },
   "dependencies": {
     "@kilroy-code/rules": "^1.0.5",
-    "@kilroy-code/utilities": "^1.0.6"
+    "@kilroy-code/utilities": "^1.0.7"
   },
   "devDependencies": {
-    "@kilroy-code/api-key": "0.0.1",
+    "@kilroy-code/api-keys": "0.0.2",
     "@kilroy-code/hidden-tab-simulator": "0.0.3",
     "jasmine": "^4.5.0"
   }
