@@ -1,5 +1,5 @@
-import { SimpleAssembly } from './assembly.mjs';
 import { Croquet } from '@kilroy-code/utilities/croquet.mjs';
+import { SimpleAssembly } from './assembly.mjs';
 export { Croquet };
 
 export const Model = superclass => class extends SimpleAssembly(superclass) {
