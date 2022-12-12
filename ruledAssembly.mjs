@@ -1,4 +1,4 @@
-import { Rule } from '../rules/index.mjs';
+import { Rule } from '@kilroy-code/rules/index.mjs';
 import { Assembly } from './assembly.mjs';
 
 export const RuledAssembly = superclass => {

@@ -1,4 +1,4 @@
-import { Rule } from '../rules/index.mjs';
+import { Rule } from '@kilroy-code/rules/index.mjs';
 import { CroquetModel, Croquet } from './model.mjs';
 import { View } from './view.mjs';
 import { Ruled } from './ruledAssembly.mjs';

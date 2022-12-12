@@ -19,14 +19,15 @@
     "url": "https://github.com/kilroy-code/block/issues"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com/kilroy-code"
+    "registry": "https://npm.pkg.github.com"
   },
   "dependencies": {
-    "@kilroy-code/utilities": "^1.0.3"
+    "@kilroy-code/rules": "^1.0.5",
+    "@kilroy-code/utilities": "^1.0.4"
   },
   "devDependencies": {
-    "@kilroy-code/croquet-in-memory": "0.0.1",
-    "@kilroy-code/hidden-tab-simulator": "0.0.1",
-    "jasmine": "^3.5.0"
+    "@kilroy-code/api-key": "0.0.1",
+    "@kilroy-code/hidden-tab-simulator": "0.0.3",
+    "jasmine": "^4.5.0"
   }
 }

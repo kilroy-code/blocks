@@ -1,6 +1,6 @@
+import { Rule } from '@kilroy-code/rules/index.mjs';
 import { Assembly, SimpleAssembly} from '../assembly.mjs';
 import { RuledAssembly } from '../ruledAssembly.mjs';
-import { Rule } from '../../rules/index.mjs';
 const Ruled = RuledAssembly(Object);
 
 function testAssembly(Assembly, rulify = _=>_) {

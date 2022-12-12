@@ -1,9 +1,9 @@
-import { Rule } from '../../rules/index.mjs';
+import { Rule } from '@kilroy-code/rules/index.mjs';
+import { getKey } from '@kilroy-code/api-key/index.mjs';
+import { simulateVisibility } from '@kilroy-code/hidden-tab-simulator/index.mjs';
+import { delay } from '@kilroy-code/utilities/delay.mjs';
+import { Croquet } from '@kilroy-code/utilities/croquet.mjs';
 import { Ruled, CroquetBlock as Block, CroquetModel } from '../index.mjs';
-import { delay } from '../../utilities/delay.mjs';
-import { getKey } from '../../api-key/index.mjs';
-import { simulateVisibility } from '../../hidden-tab-simulator/index.mjs';
-import { Croquet } from '../../utilities/croquet.mjs';
 Croquet.App.root = false; // Disable the default Croquet overlay so we can see Jasmine report from start to finish.
 
 describe('Croquet Block', function () {
