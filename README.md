@@ -1,6 +1,12 @@
 # Blocks
 
+<<<<<<< Updated upstream
 > Abstract: Blocks provide a basic unit of abstraction by which end-users can interactively create live multi-user Web applications as they are running those applications, using separately written code for local-only visual and interactive behavior. It does not use an application server.
+=======
+**NEXT VERSION UNDER DEVELOPMENT IN next BRANCH**
+
+> Abstract: Blocks provide a basic unit of abstraction by which end-users can interactively create live multi-user Web applications as they are running those applications, interactively adding and modifying code that was written by different authors for local-only visual and interactive behavior. It does not use an application server.
+>>>>>>> Stashed changes
 
 A Block is a generic object that can be composed, decomposed, and modified in a Web browser.
 - Arbitrarily named "sessions" can be created. Users can come and go from the session, and each will recreate the same Block structure, which will stay in sync for each user as properties are changed, and as Blocks are added and removed.
